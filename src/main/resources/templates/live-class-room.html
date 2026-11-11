@@ -1,0 +1,812 @@
+
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Live Classroom</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #f1f5f9;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        .class-header {
+            background: #172554;
+            color: white;
+            padding: 15px 25px;
+            min-height: 75px;
+        }
+
+        .class-title {
+            font-size: 19px;
+            font-weight: 600;
+        }
+
+        #jitsi-container {
+            width: 100%;
+            height: calc(100vh - 75px);
+            min-height: 450px;
+            background: #111827;
+        }
+
+        #jitsi-container iframe {
+            width: 100% !important;
+            height: 100% !important;
+            border: 0;
+        }
+
+        .meeting-message {
+            position: fixed;
+            left: 50%;
+            bottom: 20px;
+            transform: translateX(-50%);
+            z-index: 1000;
+            width: min(90%, 500px);
+            text-align: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 600px) {
+            .class-header {
+                padding: 12px;
+            }
+
+            .class-title {
+                font-size: 16px;
+            }
+
+            #jitsi-container {
+                height: calc(100vh - 90px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- ========================================= -->
+<!-- CLASS HEADER -->
+<!-- ========================================= -->
+
+<div class="class-header d-flex justify-content-between
+            align-items-center flex-wrap gap-3">
+
+    <div>
+        <div class="class-title"
+             th:text="${classTitle}">
+            Live Class
+        </div>
+
+        <small>
+            <span class="badge bg-danger">LIVE</span>
+            Online Classroom
+        </small>
+    </div>
+
+    <div class="d-flex gap-2 align-items-center">
+
+        <!-- Admin End Class -->
+        <form th:if="${isAdmin}"
+              th:action="@{/admin/live-classes/{id}/complete(id=${classId})}"
+              method="post"
+              onsubmit="return endClass()">
+
+            <button type="submit"
+                    class="btn btn-danger btn-sm">
+
+                End Class
+
+            </button>
+
+        </form>
+
+        <!-- Leave Meeting -->
+        <button type="button"
+                class="btn btn-outline-light btn-sm"
+                onclick="leaveClass()">
+
+            Leave Class
+
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- ========================================= -->
+<!-- JITSI MEETING CONTAINER -->
+<!-- ========================================= -->
+
+<div id="jitsi-container"></div>
+
+
+<!-- ========================================= -->
+<!-- ERROR MESSAGE -->
+<!-- ========================================= -->
+
+<div id="meeting-error"
+     class="alert alert-danger meeting-message hidden">
+
+    Unable to load the live meeting.
+
+    Please check your internet connection and refresh the page.
+
+</div>
+
+
+<!-- ========================================= -->
+<!-- CONNECTION STATUS -->
+<!-- ========================================= -->
+
+<div id="connection-message"
+     class="alert alert-warning meeting-message hidden">
+
+    Connection interrupted. Trying to reconnect...
+
+</div>
+
+
+<!-- ========================================= -->
+<!-- THYMELEAF MEETING DATA -->
+<!-- ========================================= -->
+
+<div id="meeting-data"
+     th:attr="
+        data-room-name=${roomName},
+        data-display-name=${displayName},
+        data-class-id=${classId},
+        data-is-admin=${isAdmin}">
+</div>
+
+
+<!-- ========================================= -->
+<!-- JITSI EXTERNAL API -->
+<!-- ========================================= -->
+
+<script src="https://meet.jit.si/external_api.js"></script>
+
+
+<script>
+
+    // ==========================================
+    // 1. GLOBAL VARIABLES
+    // ==========================================
+
+    let jitsiApi = null;
+
+    let attendanceStarted = false;
+
+    let attendanceStopped = false;
+
+    let attendanceRequestInProgress = false;
+
+    let jitsiJoined = false;
+
+    let intentionalLeave = false;
+
+    let heartbeatTimer = null;
+
+    let reconnectInProgress = false;
+
+    let disconnectRequestInProgress = false;
+
+    const meetingData =
+        document.getElementById("meeting-data");
+
+    const roomName =
+        meetingData.dataset.roomName;
+
+    const displayName =
+        meetingData.dataset.displayName;
+
+    const classId =
+        meetingData.dataset.classId;
+
+    const isAdmin =
+        meetingData.dataset.isAdmin === "true";
+
+
+    // ==========================================
+    // 2. COMMON ATTENDANCE API
+    // ==========================================
+
+    async function sendAttendanceEvent(event, keepalive = false) {
+
+        if (isAdmin) {
+            return false;
+        }
+
+        const url =
+            `/student/live-classes/${classId}/attendance/${event}`;
+
+        try {
+
+            const response = await fetch(url, {
+
+                method: "POST",
+
+                credentials: "same-origin",
+
+                keepalive: keepalive,
+
+                headers: {
+                    "Content-Type": "application/json"
+                }
+
+            });
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Attendance request failed: " + response.status
+                );
+
+            }
+
+            console.log("Attendance event successful:", event);
+
+            return true;
+
+        } catch (error) {
+
+            console.error("Attendance API error:", error);
+
+            return false;
+
+        }
+
+    }
+
+
+    // ==========================================
+    // 3. STUDENT JOIN
+    // ==========================================
+
+    async function startAttendance() {
+
+        if (isAdmin ||
+            attendanceStarted ||
+            attendanceRequestInProgress ||
+            intentionalLeave) {
+
+            return;
+
+        }
+
+        attendanceRequestInProgress = true;
+
+        const success =
+            await sendAttendanceEvent("join");
+
+        attendanceStarted = success;
+
+        attendanceStopped = false;
+
+        attendanceRequestInProgress = false;
+
+        if (success) {
+
+            console.log("Student attendance started.");
+
+            startHeartbeat();
+
+        } else {
+
+            console.error("Unable to start attendance.");
+
+        }
+
+    }
+
+
+    // ==========================================
+    // 4. HEARTBEAT
+    // ==========================================
+
+    function startHeartbeat() {
+
+        if (isAdmin || heartbeatTimer !== null) {
+            return;
+        }
+
+        heartbeatTimer = setInterval(async function () {
+
+            if (!jitsiJoined ||
+                !attendanceStarted ||
+                attendanceStopped ||
+                intentionalLeave ||
+                !navigator.onLine) {
+
+                return;
+
+            }
+
+            const success =
+                await sendAttendanceEvent("heartbeat");
+
+            if (!success) {
+
+                showConnectionMessage();
+
+            } else {
+
+                hideConnectionMessage();
+
+            }
+
+        }, 15000);
+
+    }
+
+
+    // ==========================================
+    // 5. STOP HEARTBEAT
+    // ==========================================
+
+    function stopHeartbeat() {
+
+        if (heartbeatTimer !== null) {
+
+            clearInterval(heartbeatTimer);
+
+            heartbeatTimer = null;
+
+        }
+
+    }
+
+
+    // ==========================================
+    // 6. TEMPORARY DISCONNECTION
+    // ==========================================
+
+    async function markDisconnected(keepalive = false) {
+
+        if (isAdmin ||
+            !attendanceStarted ||
+            attendanceStopped ||
+            intentionalLeave ||
+            disconnectRequestInProgress) {
+
+            return;
+
+        }
+
+        disconnectRequestInProgress = true;
+
+        stopHeartbeat();
+
+        const success =
+            await sendAttendanceEvent("disconnect", keepalive);
+
+        disconnectRequestInProgress = false;
+
+        if (success) {
+
+            console.log("Student marked temporarily disconnected.");
+
+        }
+
+    }
+
+
+    // ==========================================
+    // 7. RECONNECT STUDENT
+    // ==========================================
+
+    async function reconnectStudent() {
+
+        if (isAdmin ||
+            !attendanceStarted ||
+            attendanceStopped ||
+            intentionalLeave ||
+            reconnectInProgress ||
+            !jitsiJoined ||
+            !navigator.onLine) {
+
+            return;
+
+        }
+
+        reconnectInProgress = true;
+
+        showConnectionMessage();
+
+        const success =
+            await sendAttendanceEvent("reconnect");
+
+        reconnectInProgress = false;
+
+        if (success) {
+
+            console.log("Student reconnected successfully.");
+
+            hideConnectionMessage();
+
+            startHeartbeat();
+
+        } else {
+
+            console.error("Student reconnection failed.");
+
+        }
+
+    }
+
+
+    // ==========================================
+    // 8. STUDENT INTENTIONAL LEAVE
+    // ==========================================
+
+    async function stopAttendance(keepalive = false) {
+
+        if (isAdmin ||
+            !attendanceStarted ||
+            attendanceStopped) {
+
+            return;
+
+        }
+
+        attendanceStopped = true;
+
+        stopHeartbeat();
+
+        const success =
+            await sendAttendanceEvent("leave", keepalive);
+
+        if (!success && !keepalive) {
+
+            attendanceStopped = false;
+
+        }
+
+        console.log("Student leave request completed.");
+
+    }
+
+
+    // ==========================================
+    // 9. CONNECTION STATUS MESSAGES
+    // ==========================================
+
+    function showConnectionMessage() {
+
+        document.getElementById("connection-message")
+            .classList.remove("hidden");
+
+    }
+
+
+    function hideConnectionMessage() {
+
+        document.getElementById("connection-message")
+            .classList.add("hidden");
+
+    }
+
+
+    function showMeetingError() {
+
+        document.getElementById("meeting-error")
+            .classList.remove("hidden");
+
+    }
+
+
+    // ==========================================
+    // 10. INITIALIZE JITSI
+    // ==========================================
+
+    function initializeMeeting() {
+
+        if (typeof JitsiMeetExternalAPI === "undefined") {
+
+            showMeetingError();
+
+            console.error("Jitsi External API not loaded.");
+
+            return;
+
+        }
+
+        if (!roomName || !displayName || !classId) {
+
+            showMeetingError();
+
+            console.error("Meeting information is missing.");
+
+            return;
+
+        }
+
+        const domain = "meet.jit.si";
+
+        const options = {
+
+            roomName: roomName,
+
+            width: "100%",
+
+            height: "100%",
+
+            parentNode:
+                document.getElementById("jitsi-container"),
+
+            userInfo: {
+
+                displayName: displayName
+
+            },
+
+            configOverwrite: {
+
+                startWithAudioMuted: true,
+
+                startWithVideoMuted: false
+
+            }
+
+        };
+
+
+        try {
+
+            jitsiApi =
+                new JitsiMeetExternalAPI(domain, options);
+
+
+            // ==========================================
+            // 11. JITSI JOIN EVENT
+            // ==========================================
+
+            jitsiApi.addListener(
+                "videoConferenceJoined",
+                function () {
+
+                    console.log("Joined Jitsi meeting.");
+
+                    jitsiJoined = true;
+
+                    hideMeetingError();
+
+                    hideConnectionMessage();
+
+                    if (!isAdmin) {
+
+                        if (attendanceStarted) {
+
+                            reconnectStudent();
+
+                        } else {
+
+                            startAttendance();
+
+                        }
+
+                    }
+
+                }
+            );
+
+
+            // ==========================================
+            // 12. JITSI LEAVE EVENT
+            // ==========================================
+
+            jitsiApi.addListener(
+                "videoConferenceLeft",
+                function () {
+
+                    console.log("Jitsi conference left.");
+
+                    jitsiJoined = false;
+
+                    if (!isAdmin && !intentionalLeave) {
+
+                        markDisconnected();
+
+                    }
+
+                }
+            );
+
+
+            // ==========================================
+            // 13. JITSI READY EVENT
+            // ==========================================
+
+            jitsiApi.addListener(
+                "readyToClose",
+                function () {
+
+                    console.log("Jitsi meeting is ready to close.");
+
+                }
+            );
+
+
+        } catch (error) {
+
+            console.error("Jitsi initialization failed:", error);
+
+            showMeetingError();
+
+        }
+
+    }
+
+
+    function hideMeetingError() {
+
+        document.getElementById("meeting-error")
+            .classList.add("hidden");
+
+    }
+
+
+    // ==========================================
+    // 14. INTERNET OFFLINE EVENT
+    // ==========================================
+
+    window.addEventListener("offline", function () {
+
+        console.log("Internet connection lost.");
+
+        showConnectionMessage();
+
+        if (!isAdmin) {
+
+            markDisconnected(true);
+
+        }
+
+    });
+
+
+    // ==========================================
+    // 15. INTERNET ONLINE EVENT
+    // ==========================================
+
+    window.addEventListener("online", function () {
+
+        console.log("Internet connection restored.");
+
+        if (!isAdmin && jitsiJoined) {
+
+            reconnectStudent();
+
+        }
+
+    });
+
+
+    // ==========================================
+    // 16. ADMIN END CLASS
+    // ==========================================
+
+    function endClass() {
+
+        const confirmation = confirm(
+            "Are you sure you want to end this live class?"
+        );
+
+        if (!confirmation) {
+
+            return false;
+
+        }
+
+        intentionalLeave = true;
+
+        stopHeartbeat();
+
+        if (jitsiApi) {
+
+            jitsiApi.executeCommand("hangup");
+
+        }
+
+        // Allow the existing form to submit
+        return true;
+
+    }
+
+
+    // ==========================================
+    // 17. LEAVE CLASS BUTTON
+    // ==========================================
+
+    async function leaveClass() {
+
+        if (!confirm("Are you sure you want to leave this meeting?")) {
+
+            return;
+
+        }
+
+        intentionalLeave = true;
+
+        stopHeartbeat();
+
+        if (!isAdmin) {
+
+            await stopAttendance();
+
+        }
+
+        if (jitsiApi) {
+
+            jitsiApi.executeCommand("hangup");
+
+        }
+
+        if (isAdmin) {
+
+            window.location.href = "/admin/live-classes";
+
+        } else {
+
+            window.location.href = "/student/dashboard";
+
+        }
+
+    }
+
+
+    // ==========================================
+    // 18. PAGE HIDE / REFRESH / IFRAME CLOSE
+    // ==========================================
+
+    window.addEventListener("pagehide", function () {
+
+        stopHeartbeat();
+
+        if (!isAdmin && attendanceStarted && !attendanceStopped) {
+
+            // Unexpected page close: preserve the reconnection window
+            sendAttendanceEvent("disconnect", true);
+
+        }
+
+        if (jitsiApi) {
+
+            jitsiApi.dispose();
+
+            jitsiApi = null;
+
+        }
+
+    });
+
+
+    // ==========================================
+    // 19. PAGE LOAD
+    // ==========================================
+
+    window.addEventListener("load", function () {
+
+        initializeMeeting();
+
+    });
+
+</script>
+
+</body>
+</html>

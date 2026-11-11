@@ -1,0 +1,414 @@
+
+/* ==============================
+   GLOBAL STYLES
+================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+body {
+    background: #f1f5f9;
+    color: #1e293b;
+    min-height: 100vh;
+}
+
+
+/* ==============================
+   MAIN CHAT CONTAINER
+================================ */
+
+.chat-container {
+    display: flex;
+    width: 95%;
+    max-width: 1500px;
+    height: 88vh;
+    min-height: 550px;
+    margin: 30px auto;
+    background: #ffffff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 35px rgba(15, 23, 42, 0.10);
+}
+
+
+/* ==============================
+   STUDENT SIDEBAR
+================================ */
+
+.student-sidebar {
+    width: 340px;
+    min-width: 300px;
+    background: #ffffff;
+    border-right: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.student-sidebar h2 {
+    padding: 25px 22px;
+    background: #172554;
+    color: #ffffff;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+
+/* ==============================
+   STUDENT ITEM
+================================ */
+
+.student-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 17px 15px;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.2s ease;
+}
+
+.student-item:hover {
+    background: #f1f5ff;
+}
+
+.student-avatar {
+    width: 45px;
+    height: 45px;
+    min-width: 45px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2563eb, #4f46e5);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.student-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.student-details h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 5px;
+    overflow-wrap: anywhere;
+}
+
+.student-details p {
+    font-size: 12px;
+    color: #64748b;
+    overflow-wrap: anywhere;
+}
+
+
+/* ==============================
+   CHAT BUTTON
+================================ */
+
+.chat-button {
+    padding: 8px 13px;
+    border: none;
+    border-radius: 7px;
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chat-button:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+}
+
+
+/* ==============================
+   MAIN CHAT SECTION
+================================ */
+
+.chat-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: #f8fafc;
+}
+
+
+/* ==============================
+   CHAT HEADER
+================================ */
+
+.chat-header {
+    min-height: 80px;
+    padding: 20px 25px;
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.chat-header h2 {
+    font-size: 19px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+
+/* ==============================
+   MESSAGE CONTAINER
+================================ */
+
+.message-container {
+    flex: 1;
+    padding: 25px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.empty-message {
+    margin: auto;
+    color: #94a3b8;
+    font-size: 15px;
+    text-align: center;
+}
+
+
+/* ==============================
+   MESSAGE BUBBLES
+================================ */
+
+.message {
+    max-width: 70%;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.message.sent {
+    align-self: flex-end;
+    background: #2563eb;
+    color: #ffffff;
+    border-bottom-right-radius: 3px;
+}
+
+.message.received {
+    align-self: flex-start;
+    background: #ffffff;
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
+    border-bottom-left-radius: 3px;
+}
+
+.message-time {
+    display: block;
+    margin-top: 6px;
+    font-size: 10px;
+    opacity: 0.75;
+    text-align: right;
+}
+
+
+/* ==============================
+   MESSAGE INPUT AREA
+================================ */
+
+.chat-input-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 22px;
+    background: #ffffff;
+    border-top: 1px solid #e2e8f0;
+}
+
+.chat-input-area input {
+    flex: 1;
+    min-width: 0;
+    padding: 13px 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    outline: none;
+    font-size: 14px;
+    background: #f8fafc;
+    transition: border 0.2s ease;
+}
+
+.chat-input-area input:focus {
+    border-color: #2563eb;
+    background: #ffffff;
+}
+
+#sendButton {
+    padding: 13px 24px;
+    border: none;
+    border-radius: 9px;
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+#sendButton:hover:not(:disabled) {
+    background: #1d4ed8;
+}
+
+#sendButton:disabled,
+.chat-input-area input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+
+/* ==============================
+   SCROLLBAR
+================================ */
+
+.student-sidebar::-webkit-scrollbar,
+.message-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.student-sidebar::-webkit-scrollbar-thumb,
+.message-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+
+/* ==============================
+   RESPONSIVE DESIGN
+================================ */
+
+@media (max-width: 768px) {
+
+    .chat-container {
+        width: 100%;
+        height: 100vh;
+        min-height: 0;
+        margin: 0;
+        border-radius: 0;
+    }
+
+    .student-sidebar {
+        width: 115px;
+        min-width: 115px;
+    }
+
+    .student-sidebar h2 {
+        padding: 18px 10px;
+        font-size: 17px;
+    }
+
+    .student-item {
+        flex-direction: column;
+        text-align: center;
+        gap: 8px;
+        padding: 12px 5px;
+    }
+
+    .student-details h4 {
+        font-size: 12px;
+    }
+
+    .student-details p {
+        display: none;
+    }
+
+    .chat-button {
+        padding: 7px 12px;
+    }
+
+    .chat-header {
+        padding: 15px;
+    }
+
+    .chat-header h2 {
+        font-size: 15px;
+    }
+
+    .message-container {
+        padding: 15px;
+    }
+
+    .message {
+        max-width: 90%;
+    }
+
+    .chat-input-area {
+        padding: 12px;
+        gap: 7px;
+    }
+
+    .chat-input-area input {
+        padding: 11px;
+    }
+
+    #sendButton {
+        padding: 11px 14px;
+    }
+
+    .unread-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        height: 22px;
+        padding: 0 6px;
+        border-radius: 50%;
+        background: #ef4444;
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+        margin-left: 8px;
+    }
+
+    .unread-badge {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+
+        width: 22px;
+        height: 22px;
+        min-width: 22px;
+
+        border-radius: 50%;
+        background-color: #ef4444 !important;
+        color: #ffffff !important;
+
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+
+        margin-left: 8px;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    .read-status {
+        color: #94a3b8;
+        font-size: 12px;
+        margin-left: 5px;
+        font-weight: bold;
+    }
+
+    .read-status.read {
+        color: #2563eb;
+    }
+}

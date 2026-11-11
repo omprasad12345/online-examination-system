@@ -1,0 +1,487 @@
+
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Student Chat</title>
+
+    <link rel="stylesheet" th:href="@{/css/admin-chat.css(v=3)}">
+
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+</head>
+
+<body>
+
+<input type="hidden" id="currentUserId" th:value="${currentUserId}">
+<input type="hidden" id="adminId" th:value="${adminId}">
+
+<div class="chat-container">
+
+    <!-- Admin Sidebar -->
+    <aside class="student-sidebar">
+
+        <h2>Support</h2>
+
+        <div class="student-item">
+
+            <div class="student-avatar">A</div>
+
+            <div class="student-details">
+                <h4 th:text="${adminName}">Admin</h4>
+                <p>Administrator</p>
+            </div>
+
+        </div>
+
+    </aside>
+
+    <!-- Chat Window -->
+    <main class="chat-main">
+
+        <header class="chat-header">
+            <h2 th:text="'Chat with ' + ${adminName}">
+                Chat with Admin
+            </h2>
+        </header>
+
+        <div id="messageContainer" class="message-container">
+
+            <p class="empty-message">
+                Start a conversation with Admin.
+            </p>
+
+        </div>
+
+        <!-- Message Input -->
+        <div class="chat-input-area">
+
+            <input type="text"
+                   id="messageInput"
+                   placeholder="Type your message..."
+                   autocomplete="off">
+
+            <button id="sendButton" type="button">
+                Send
+            </button>
+
+        </div>
+
+    </main>
+
+</div>
+
+<script>
+
+    /* =====================================
+       USER DETAILS
+    ===================================== */
+
+    const CURRENT_USER_ID = Number(
+        document.getElementById("currentUserId").value
+    );
+
+    const ADMIN_ID = Number(
+        document.getElementById("adminId").value
+    );
+
+    let stompClient = null;
+
+
+    /* =====================================
+       CONNECT TO WEBSOCKET
+    ===================================== */
+
+    function connectWebSocket() {
+
+        if (typeof StompJs === "undefined") {
+            console.error("STOMP library failed to load.");
+            return;
+        }
+
+        const protocol =
+            window.location.protocol === "https:" ? "wss://" : "ws://";
+
+        const socketUrl =
+            protocol + window.location.host + "/ws";
+
+        stompClient = new StompJs.Client({
+
+            brokerURL: socketUrl,
+
+            reconnectDelay: 5000,
+
+            onConnect: async function () {
+
+                console.log("Student WebSocket connected!");
+
+                // 1. Subscribe to chat messages
+                stompClient.subscribe(
+                    "/user/queue/messages",
+                    async function (message) {
+
+                        const chatMessage = JSON.parse(message.body);
+
+                        console.log("Message received:", chatMessage);
+
+                        if (
+                            Number(chatMessage.senderId) === ADMIN_ID ||
+                            Number(chatMessage.receiverId) === ADMIN_ID
+                        ) {
+
+                            displayMessage(chatMessage);
+
+                            // If Admin sends a message while Student
+                            // is viewing this conversation, mark it read.
+                            if (
+                                Number(chatMessage.senderId) === ADMIN_ID
+                            ) {
+                                await markMessagesAsRead();
+                            }
+
+                        }
+
+                    }
+                );
+
+                // 2. Subscribe to read receipts
+                stompClient.subscribe(
+                    "/user/queue/read-receipts",
+                    function (receiptMessage) {
+
+                        const receipt = JSON.parse(receiptMessage.body);
+
+                        console.log("Read receipt received:", receipt);
+
+                        // Admin has read Student's messages
+                        if (
+                            Number(receipt.readerId) === ADMIN_ID &&
+                            Number(receipt.senderId) === CURRENT_USER_ID
+                        ) {
+
+                            document.querySelectorAll(
+                                "#messageContainer .message.sent .read-status"
+                            ).forEach(function (status) {
+
+                                status.textContent = "✓✓";
+                                status.classList.add("read");
+
+                            });
+
+                        }
+
+                    }
+                );
+
+                // 3. Load history after WebSocket subscriptions
+                await loadChatHistory();
+
+                // 4. Mark Admin's existing messages as read
+                await markMessagesAsRead();
+
+            },
+
+            onStompError: function (frame) {
+
+                console.error(
+                    "STOMP error:",
+                    frame.headers["message"]
+                );
+
+            },
+
+            onWebSocketError: function (error) {
+
+                console.error("WebSocket error:", error);
+
+            },
+
+            onWebSocketClose: function () {
+
+                console.log("WebSocket connection closed.");
+
+            }
+
+        });
+
+        stompClient.activate();
+
+    }
+
+
+    /* =====================================
+       LOAD CHAT HISTORY
+    ===================================== */
+
+    async function loadChatHistory() {
+
+        const messageContainer =
+            document.getElementById("messageContainer");
+
+        messageContainer.innerHTML = "";
+
+        try {
+
+            const response = await fetch(
+                `/chat/history/${ADMIN_ID}`
+            );
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Unable to load chat history: " + response.status
+                );
+
+            }
+
+            const messages = await response.json();
+
+            if (messages.length === 0) {
+
+                messageContainer.innerHTML =
+                    '<p class="empty-message">No messages yet. Start a conversation!</p>';
+
+                return;
+
+            }
+
+            messages.forEach(function (message) {
+
+                displayMessage(message);
+
+            });
+
+        } catch (error) {
+
+            console.error("Chat history error:", error);
+
+            messageContainer.innerHTML =
+                '<p class="empty-message">Unable to load messages.</p>';
+
+        }
+
+    }
+
+
+    /* =====================================
+       SEND MESSAGE
+    ===================================== */
+
+    function sendMessage() {
+
+        const messageInput =
+            document.getElementById("messageInput");
+
+        const content = messageInput.value.trim();
+
+        if (!content) {
+            return;
+        }
+
+        if (!stompClient || !stompClient.connected) {
+
+            alert("Connection not ready. Please wait.");
+
+            return;
+
+        }
+
+        const chatMessage = {
+
+            receiverId: ADMIN_ID,
+
+            content: content
+
+        };
+
+        stompClient.publish({
+
+            destination: "/app/chat.send",
+
+            body: JSON.stringify(chatMessage)
+
+        });
+
+        messageInput.value = "";
+
+    }
+
+
+    /* =====================================
+       DISPLAY MESSAGE
+    ===================================== */
+
+    function displayMessage(message) {
+
+        const messageContainer =
+            document.getElementById("messageContainer");
+
+        // Remove empty message
+        const emptyMessage =
+            messageContainer.querySelector(".empty-message");
+
+        if (emptyMessage) {
+            emptyMessage.remove();
+        }
+
+        const messageDiv = document.createElement("div");
+
+        messageDiv.classList.add("message");
+
+        const isSent =
+            Number(message.senderId) === CURRENT_USER_ID;
+
+        if (isSent) {
+
+            messageDiv.classList.add("sent");
+
+        } else {
+
+            messageDiv.classList.add("received");
+
+        }
+
+        // Message content
+        const content = document.createElement("div");
+
+        content.textContent = message.content;
+
+        // Message time
+        const time = document.createElement("span");
+
+        time.className = "message-time";
+
+        time.textContent = new Date(message.timestamp)
+            .toLocaleTimeString([], {
+
+                hour: "2-digit",
+
+                minute: "2-digit"
+
+            });
+
+        messageDiv.appendChild(content);
+
+        messageDiv.appendChild(time);
+
+        // Read receipt for Student's own messages
+        if (isSent) {
+
+            const readStatus = document.createElement("span");
+
+            readStatus.className = "read-status";
+
+            readStatus.textContent =
+                message.isRead === true ? "✓✓" : "✓";
+
+            if (message.isRead === true) {
+
+                readStatus.classList.add("read");
+
+            }
+
+            messageDiv.appendChild(readStatus);
+
+        }
+
+        messageContainer.appendChild(messageDiv);
+
+        messageContainer.scrollTop =
+            messageContainer.scrollHeight;
+
+    }
+
+
+    /* =====================================
+       MARK ADMIN MESSAGES AS READ
+    ===================================== */
+
+    async function markMessagesAsRead() {
+
+        try {
+
+            // Update database using REST API
+            const response = await fetch(
+                `/chat/read/${ADMIN_ID}`,
+                {
+                    method: "PUT"
+                }
+            );
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Unable to mark messages as read: " +
+                    response.status
+                );
+
+            }
+
+            console.log("Admin messages marked as read.");
+
+            // Notify Admin through WebSocket
+            if (stompClient && stompClient.connected) {
+
+                stompClient.publish({
+
+                    destination: "/app/chat.read",
+
+                    body: JSON.stringify({
+
+                        senderId: ADMIN_ID
+
+                    })
+
+                });
+
+                console.log("Read receipt sent to Admin.");
+
+            }
+
+        } catch (error) {
+
+            console.error("Read status error:", error);
+
+        }
+
+    }
+
+
+    /* =====================================
+       BUTTON EVENT
+    ===================================== */
+
+    document.getElementById("sendButton")
+        .addEventListener("click", sendMessage);
+
+
+    /* =====================================
+       ENTER KEY EVENT
+    ===================================== */
+
+    document.getElementById("messageInput")
+        .addEventListener("keydown", function (event) {
+
+            if (event.key === "Enter") {
+
+                event.preventDefault();
+
+                sendMessage();
+
+            }
+
+        });
+
+
+    /* =====================================
+       START CONNECTION
+    ===================================== */
+
+    connectWebSocket();
+
+</script>
+
+</body>
+</html>

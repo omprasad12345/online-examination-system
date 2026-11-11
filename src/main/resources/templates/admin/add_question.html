@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="">
+<head>
+    <title>Add Question</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+
+<div th:replace="~{fragments :: navbar}"></div>
+
+<main class="container mt-5">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Add Question for Exam (ID: <span th:text="${examId}">1</span>)</h2>
+        <a th:href="@{/admin/exam/manage-questions/{id}(id=${examId})}" class="btn btn-secondary">
+            Manage Questions
+        </a >
+    </div>
+
+
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+
+
+    <form th:action="@{/admin/exam/question/add}" th:object="${question}" method="post" class="mt-4">
+
+        <input type="hidden" name="examId" th:value="${examId}" />
+
+        <!-- Question Text -->
+        <div class="mb-3">
+            <label for="text" class="form-label">Question Text</label>
+            <textarea class="form-control" id="text" th:field="*{text}" rows="3" required></textarea>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="option1" class="form-label">Option 1</label>
+                <input type="text" class="form-control" id="option1" th:field="*{option1}" required>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="option2" class="form-label">Option 2</label>
+                <input type="text" class="form-control" id="option2" th:field="*{option2}" required>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="option3" class="form-label">Option 3</label>
+                <input type="text" class="form-control" id="option3" th:field="*{option3}" required>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="option4" class="form-label">Option 4</label>
+                <input type="text" class="form-control" id="option4" th:field="*{option4}" required>
+            </div>
+        </div>
+
+        <hr>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="correctAnswer" class="form-label">Correct Answer (1-4)</label>
+                <input type="number" class="form-control" id="correctAnswer" th:field="*{correctAnswer}" min="1" max="4" required>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="marks" class="form-label">Marks</label>
+                <input type="number" class="form-control" id="marks" th:field="*{marks}" min="1" required>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Add Question</button><br>
+    </form>
+
+
+<br>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

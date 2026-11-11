@@ -1,0 +1,115 @@
+
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Live Class</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+
+    <style>
+        body {
+            background: #f4f7fb;
+        }
+
+        .form-card {
+            max-width: 650px;
+            margin: 45px auto;
+            background: white;
+            padding: 35px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.07);
+        }
+
+        .form-label {
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+
+<div th:replace="~{fragments :: navbar}"></div>
+
+<div class="container">
+
+    <div class="form-card">
+
+        <h3 class="mb-2">Create Live Class</h3>
+
+        <p class="text-muted mb-4">
+            Schedule a new online class for students.
+        </p>
+
+        <div th:if="${error}"
+             class="alert alert-danger"
+             th:text="${error}">
+        </div>
+
+        <form th:action="@{/admin/live-classes/create}"
+              method="post">
+
+            <div class="mb-3">
+
+                <label class="form-label">Class Title</label>
+
+                <input type="text"
+                       name="title"
+                       class="form-control"
+                       placeholder="Example: Java Spring Boot"
+                       th:value="${title}"
+                       maxlength="255"
+                       required>
+
+            </div>
+
+            <div class="mb-3">
+
+                <label class="form-label">Description</label>
+
+                <textarea name="description"
+                          class="form-control"
+                          rows="4"
+                          maxlength="1000"
+                          placeholder="Enter class details..."
+                          th:text="${description}">
+                </textarea>
+
+            </div>
+
+            <div class="mb-4">
+
+                <label class="form-label">Schedule Date & Time</label>
+
+                <input type="datetime-local"
+                       name="scheduledAt"
+                       class="form-control"
+                       th:value="${scheduledAt}"
+                       required>
+
+            </div>
+
+            <button type="submit"
+                    class="btn btn-primary w-100">
+
+                Create Live Class
+
+            </button>
+
+            <a th:href="@{/admin/live-classes}"
+               class="btn btn-outline-secondary w-100 mt-2">
+
+                Cancel
+
+            </a>
+
+        </form>
+
+    </div>
+
+</div>
+
+</body>
+</html>

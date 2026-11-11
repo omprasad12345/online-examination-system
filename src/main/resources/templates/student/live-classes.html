@@ -1,0 +1,407 @@
+
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Student Live Classes</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+          rel="stylesheet">
+
+    <style>
+        body {
+            background: #f4f7fb;
+        }
+
+        .page-header {
+            background: linear-gradient(135deg, #172554, #2563eb);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+        }
+
+        .class-card {
+            border: none;
+            border-radius: 14px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+            transition: transform 0.2s;
+        }
+
+        .class-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-live {
+            background: #d1e7dd;
+            color: #146c43;
+        }
+
+        .status-scheduled {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-completed {
+            background: #e2e3e5;
+            color: #41464b;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #64748b;
+        }
+
+        .live-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #198754;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: pulse 1.2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.3;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div th:replace="~{fragments :: navbar}"></div>
+
+<div class="container py-4">
+
+    <!-- Page Header -->
+    <div class="page-header">
+
+        <div class="d-flex justify-content-between
+                    align-items-center flex-wrap gap-3">
+
+            <div>
+                <h2>
+                    <i class="bi bi-camera-video-fill me-2"></i>
+                    Live Classes
+                </h2>
+
+                <p class="mb-0">
+                    Attend online classes conducted by your Admin.
+                </p>
+            </div>
+
+            <div>
+                <span id="connection-status"
+                      class="badge bg-warning text-dark">
+                    Connecting...
+                </span>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- No Classes Available -->
+    <div th:if="${#lists.isEmpty(liveClasses)}"
+         class="card class-card">
+
+        <div class="empty-state">
+
+            <i class="bi bi-camera-video fs-1"></i>
+
+            <h5 class="mt-3">No Classes Available</h5>
+
+            <p>There are no live classes scheduled currently.</p>
+
+        </div>
+    </div>
+
+    <!-- Live Classes List -->
+    <div class="row g-4"
+         th:unless="${#lists.isEmpty(liveClasses)}">
+
+        <div class="col-lg-6 col-md-6"
+             th:each="liveClass : ${liveClasses}">
+
+            <div class="card class-card h-100"
+                 th:id="'live-class-' + ${liveClass.id}">
+
+                <div class="card-body p-4">
+
+                    <!-- Icon and Status -->
+                    <div class="d-flex justify-content-between
+                                align-items-center mb-3">
+
+                        <i class="bi bi-camera-video-fill fs-2 text-primary"></i>
+
+                        <span class="status class-status"
+                              th:classappend="${liveClass.status == 'LIVE'
+                                  ? 'status-live'
+                                  : (liveClass.status == 'SCHEDULED'
+                                      ? 'status-scheduled'
+                                      : 'status-completed')}"
+                              th:text="${liveClass.status}">
+
+                        </span>
+
+                    </div>
+
+                    <!-- Class Title -->
+                    <h5 class="fw-bold"
+                        th:text="${liveClass.title}">
+                    </h5>
+
+                    <!-- Description -->
+                    <p class="text-muted"
+                       th:text="${liveClass.description != null
+                           ? liveClass.description
+                           : 'No description available'}">
+                    </p>
+
+                    <hr>
+
+                    <!-- Scheduled Date -->
+                    <p class="mb-3">
+
+                        <i class="bi bi-calendar-event me-2"></i>
+
+                        <strong>Scheduled:</strong>
+
+                        <span th:text="${#temporals.format(
+                            liveClass.scheduledAt,
+                            'dd-MM-yyyy hh:mm a')}">
+
+                        </span>
+
+                    </p>
+
+                    <!-- Dynamic Action Button -->
+                    <div class="class-action">
+
+                        <!-- Join Live Class -->
+                        <a th:if="${liveClass.status == 'LIVE'}"
+                           th:href="@{/student/live-classes/{id}/join(id=${liveClass.id})}"
+                           class="btn btn-success w-100">
+
+                            <i class="bi bi-camera-video-fill me-2"></i>
+                            Join Live Class
+
+                        </a>
+
+                        <!-- Waiting -->
+                        <button th:if="${liveClass.status == 'SCHEDULED'}"
+                                class="btn btn-secondary w-100"
+                                disabled>
+
+                            <i class="bi bi-clock me-2"></i>
+                            Waiting for Admin to Start
+
+                        </button>
+
+                        <!-- Completed -->
+                        <button th:if="${liveClass.status == 'COMPLETED'}"
+                                class="btn btn-outline-secondary w-100"
+                                disabled>
+
+                            <i class="bi bi-check-circle me-2"></i>
+                            Class Completed
+
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Back to Dashboard -->
+    <div class="mt-4">
+
+        <a th:href="@{/student/dashboard}"
+           class="btn btn-outline-secondary">
+
+            <i class="bi bi-arrow-left me-2"></i>
+            Back to Dashboard
+
+        </a>
+
+    </div>
+
+</div>
+
+<!-- Bootstrap JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- STOMP WebSocket Library -->
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+
+<!-- Real-Time Live Class Updates -->
+<script>
+
+    const connectionStatus =
+        document.getElementById("connection-status");
+
+    const client = new StompJs.Client({
+
+        brokerURL:
+            (location.protocol === "https:" ? "wss://" : "ws://")
+            + location.host + "/ws",
+
+        reconnectDelay: 5000,
+
+        heartbeatIncoming: 10000,
+
+        heartbeatOutgoing: 10000,
+
+        onConnect: function () {
+
+            console.log("Live Class WebSocket Connected");
+
+            connectionStatus.textContent = "Connected";
+            connectionStatus.className = "badge bg-success";
+
+            client.subscribe("/topic/live-classes", function (message) {
+
+                const notification = JSON.parse(message.body);
+
+                updateLiveClassStatus(notification);
+
+            });
+
+        },
+
+        onDisconnect: function () {
+
+            connectionStatus.textContent = "Disconnected";
+            connectionStatus.className = "badge bg-danger";
+
+        },
+
+        onWebSocketClose: function () {
+
+            connectionStatus.textContent = "Reconnecting...";
+            connectionStatus.className = "badge bg-warning text-dark";
+
+        },
+
+        onStompError: function (frame) {
+
+            console.error("STOMP Error:", frame.headers["message"]);
+
+        }
+
+    });
+
+    // Update class status dynamically
+    function updateLiveClassStatus(notification) {
+
+        const classCard = document.getElementById(
+            "live-class-" + notification.classId
+        );
+
+        if (!classCard) {
+            console.log("Class card not found:", notification.classId);
+            return;
+        }
+
+        const statusElement =
+            classCard.querySelector(".class-status");
+
+        const actionElement =
+            classCard.querySelector(".class-action");
+
+        if (!statusElement || !actionElement) {
+            return;
+        }
+
+        // Update status
+        statusElement.textContent = notification.status;
+
+        statusElement.className = "status class-status";
+
+        // Admin starts the class
+        if (notification.status === "LIVE") {
+
+            statusElement.classList.add("status-live");
+
+            statusElement.innerHTML =
+                '<span class="live-indicator"></span> LIVE';
+
+            actionElement.innerHTML = `
+                <a href="/student/live-classes/${notification.classId}/join"
+                   class="btn btn-success w-100">
+
+                    <i class="bi bi-camera-video-fill me-2"></i>
+                    Join Live Class
+
+                </a>
+            `;
+
+            console.log("Class is now LIVE:", notification.title);
+
+        }
+
+        // Admin ends the class
+        else if (notification.status === "COMPLETED") {
+
+            statusElement.classList.add("status-completed");
+
+            statusElement.textContent = "COMPLETED";
+
+            actionElement.innerHTML = `
+                <button class="btn btn-outline-secondary w-100"
+                        disabled>
+
+                    <i class="bi bi-check-circle me-2"></i>
+                    Class Completed
+
+                </button>
+            `;
+
+            console.log("Class completed:", notification.title);
+
+        }
+
+    }
+
+    // Connect WebSocket
+    client.activate();
+
+    // Disconnect when leaving page
+    window.addEventListener("beforeunload", function () {
+
+        client.deactivate();
+
+    });
+
+</script>
+
+</body>
+</html>

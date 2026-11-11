@@ -1,0 +1,619 @@
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<head>
+    <title>Student Dashboard</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .profile-pic-header {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #ddd;
+        }
+
+        .kpi-card {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+
+        .kpi-card .kpi-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .kpi-card .kpi-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+        }
+
+        .kpi-card .kpi-label {
+            font-size: 1rem;
+            color: #6c757d;
+        }
+
+        .chart-container {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #e9ecef;
+            height: 400px;
+        }
+
+        /* Chat and Live Class Cards */
+        .chat-support-card,
+        .live-class-card {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            height: 100%;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .chat-support-card:hover,
+        .live-class-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 18px rgba(0,0,0,0.08);
+        }
+
+        .chat-support-icon,
+        .live-class-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .chat-support-icon {
+            background-color: #e8f0ff;
+            color: #0d6efd;
+        }
+
+        .live-class-icon {
+            background-color: #e0f2fe;
+            color: #0284c7;
+        }
+    </style>
+</head>
+
+<body>
+
+<div th:replace="~{fragments :: navbar}"></div>
+
+<div class="container mt-5">
+
+    <!-- 1. Welcome Header -->
+    <div class="d-flex align-items-center mb-4">
+
+        <img th:if="${student.profilePicUrl != null}"
+             th:src="@{${student.profilePicUrl}}"
+             alt="Profile"
+             class="profile-pic-header me-3">
+
+        <svg th:if="${student.profilePicUrl == null}"
+             xmlns="http://www.w3.org/2000/svg"
+             width="50"
+             height="50"
+             fill="currentColor"
+             class="bi bi-person-circle profile-pic-header me-3"
+             viewBox="0 0 16 16">
+
+            <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+
+            <path fill-rule="evenodd"
+                  d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
+
+        </svg>
+
+        <div>
+            <h2 class="mb-0">
+                Welcome back, <span th:text="${student.fullName}"></span>!
+            </h2>
+
+            <p class="mb-0 text-muted">
+                Here is your performance overview.
+            </p>
+        </div>
+
+    </div>
+
+    <!-- Unauthorized Error Message -->
+    <div th:if="${param.error == 'unauthorized'}"
+         class="alert alert-danger"
+         role="alert">
+
+        You are not authorized to review that exam result.
+
+    </div>
+
+    <!-- 2. KPI Stat Cards -->
+    <div class="row mb-4 g-4">
+
+        <div class="col-md-4">
+            <div class="kpi-card">
+
+                <div class="kpi-icon text-primary">
+                    <i class="bi bi-journal-check"></i>
+                </div>
+
+                <div class="kpi-value" th:text="${totalTaken}">0</div>
+
+                <div class="kpi-label">Exams Taken</div>
+
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="kpi-card">
+
+                <div class="kpi-icon text-success">
+                    <i class="bi bi-bar-chart-line-fill"></i>
+                </div>
+
+                <div class="kpi-value"
+                     th:text="${#numbers.formatDecimal(averageScore, 1, 1) + '%'}">
+                    0.0%
+                </div>
+
+                <div class="kpi-label">Average Score</div>
+
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="kpi-card">
+
+                <div class="kpi-icon text-warning">
+                    <i class="bi bi-trophy-fill"></i>
+                </div>
+
+                <div class="kpi-value" th:text="${highestScore} + '%'">
+                    0%
+                </div>
+
+                <div class="kpi-label">Highest Score</div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 3. Score History Chart -->
+    <div class="row mb-4">
+
+        <div class="col-12">
+
+            <div class="chart-container">
+
+                <h5 class="mb-3">Score History (%)</h5>
+
+                <canvas id="scoreChart"></canvas>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- 4. Available Exams and Past Results -->
+    <div class="row g-4">
+
+        <!-- Available Exams -->
+        <div class="col-lg-5">
+
+            <div class="card shadow-sm mb-4" style="height: 100%;">
+
+                <div class="card-header bg-white py-3">
+
+                    <h5 class="mb-0">
+                        <i class="bi bi-pencil-square me-2 text-primary"></i>
+                        Available Exams
+                    </h5>
+
+                </div>
+
+                <ul class="list-group list-group-flush">
+
+                    <th:block th:if="${#lists.isEmpty(availableExams)}">
+
+                        <li class="list-group-item text-center text-muted p-4">
+
+                            <i class="bi bi-emoji-smile fs-1"></i><br>
+
+                            You're all caught up! No new exams are available right now.
+
+                        </li>
+
+                    </th:block>
+
+                    <li th:each="exam : ${availableExams}"
+                        class="list-group-item d-flex justify-content-between align-items-center p-3">
+
+                        <div>
+
+                            <h6 class="mb-0" th:text="${exam.title}">
+                                Exam Title
+                            </h6>
+
+                            <small class="text-muted"
+                                   th:text="|${exam.durationInMinutes} minutes • ${#lists.size(exam.questions)} questions|">
+                                60 minutes
+                            </small>
+
+                        </div>
+
+                        <a th:href="@{/exam/{id}(id=${exam.id})}"
+                           class="btn btn-primary btn-sm">
+                            Start Exam
+                        </a>
+
+                    </li>
+
+                </ul>
+
+            </div>
+
+        </div>
+
+        <!-- Past Results -->
+        <div class="col-lg-7">
+
+            <div class="card shadow-sm mb-4" style="height: 100%;">
+
+                <div class="card-header bg-white py-3">
+
+                    <h5 class="mb-0">
+                        <i class="bi bi-check-circle-fill me-2 text-success"></i>
+                        Your Past Results
+                    </h5>
+
+                </div>
+
+                <div class="table-responsive">
+
+                    <table class="table table-hover align-middle mb-0">
+
+                        <thead>
+                        <tr>
+                            <th>Exam</th>
+                            <th>Score</th>
+                            <th>Percentage</th>
+                            <th>Action</th>
+                        </tr>
+                        </thead>
+
+                        <tbody>
+
+                        <th:block th:if="${#lists.isEmpty(pastResults)}">
+
+                            <tr>
+                                <td colspan="4"
+                                    class="text-center text-muted p-4">
+
+                                    <i class="bi bi-book fs-1"></i><br>
+
+                                    You have not completed any exams yet.
+
+                                </td>
+                            </tr>
+
+                        </th:block>
+
+                        <tr th:each="result : ${pastResults}">
+
+                            <td>
+
+                                <span class="fw-bold"
+                                      th:text="${result.exam.title}">
+                                    Java Basics
+                                </span>
+
+                                <br>
+
+                                <small class="text-muted"
+                                       th:text="${#temporals.format(result.submissionTime, 'MMM dd, yyyy')}">
+                                </small>
+
+                            </td>
+
+                            <td>
+
+                                <span th:text="${result.scoreAchieved}"></span>
+                                /
+                                <span th:text="${result.totalMarks}"></span>
+
+                            </td>
+
+                            <td>
+
+                                <span class="badge"
+                                      th:classappend="${((result.scoreAchieved * 100.0) / result.totalMarks) >= 70 ? 'bg-success-subtle text-success-emphasis' : 'bg-danger-subtle text-danger-emphasis'}"
+                                      th:text="${#numbers.formatDecimal((result.scoreAchieved * 100.0) / result.totalMarks, 1, 1) + '%'}">
+                                </span>
+
+                            </td>
+
+                            <td>
+
+                                <a th:href="@{/student/review/{id}(id=${result.id})}"
+                                   class="btn btn-sm btn-info">
+                                    Review
+                                </a>
+
+                            </td>
+
+                        </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- 5. Live Classes Card - NEW -->
+    <div class="row mt-3 mb-4">
+
+        <div class="col-12">
+
+            <div class="live-class-card">
+
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+
+                    <div class="d-flex align-items-center gap-3">
+
+                        <div class="live-class-icon">
+                            <i class="bi bi-camera-video-fill"></i>
+                        </div>
+
+                        <div>
+
+                            <h5 class="mb-1">
+                                Attend Live Classes
+                            </h5>
+
+                            <p class="text-muted mb-0">
+                                Join online classes conducted by your Admin.
+                                Attend interactive sessions through live video.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                    <a th:href="@{/student/live-classes}"
+                       class="btn btn-primary">
+
+                        <i class="bi bi-camera-video-fill me-2"></i>
+                        View Live Classes
+
+                    </a>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- 6. Chat with Admin -->
+    <div class="row mt-3 mb-4">
+
+        <div class="col-12">
+
+            <div class="chat-support-card">
+
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+
+                    <div class="d-flex align-items-center gap-3">
+
+                        <div class="chat-support-icon">
+                            <i class="bi bi-chat-dots-fill"></i>
+                        </div>
+
+                        <div>
+
+                            <h5 class="mb-1">
+                                Need Help? Chat with Admin
+                            </h5>
+
+                            <p class="text-muted mb-0">
+                                Have questions or facing any issues?
+                                Contact the administrator directly.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                    <a th:href="@{/student/chat}"
+                       class="btn btn-primary">
+
+                        <i class="bi bi-chat-dots me-2"></i>
+                        Open Chat
+
+                    </a>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <br><br>
+
+</div>
+
+<!-- Bootstrap JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- 7. Chart.js Initialization -->
+<script th:inline="javascript">
+
+    /*<![CDATA[*/
+
+    const chartLabels = /*[[${chartLabels}]]*/ [];
+    const chartData = /*[[${chartData}]]*/ [];
+
+    if (chartLabels.length > 0) {
+
+        const ctx = document
+            .getElementById('scoreChart')
+            .getContext('2d');
+
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+
+        gradient.addColorStop(0, 'rgba(13, 110, 253, 0.3)');
+        gradient.addColorStop(1, 'rgba(13, 110, 253, 0)');
+
+        const scoreChart = new Chart(ctx, {
+
+            type: 'line',
+
+            data: {
+
+                labels: chartLabels,
+
+                datasets: [{
+
+                    label: 'Score (%)',
+
+                    data: chartData,
+
+                    backgroundColor: gradient,
+
+                    borderColor: '#0d6efd',
+
+                    borderWidth: 3,
+
+                    pointBackgroundColor: '#0d6efd',
+
+                    pointBorderColor: '#fff',
+
+                    pointHoverRadius: 7,
+
+                    pointHoverBorderWidth: 2,
+
+                    pointRadius: 5,
+
+                    fill: true,
+
+                    tension: 0.3
+
+                }]
+
+            },
+
+            options: {
+
+                responsive: true,
+
+                maintainAspectRatio: false,
+
+                plugins: {
+
+                    legend: {
+                        display: false
+                    },
+
+                    tooltip: {
+
+                        backgroundColor: '#fff',
+
+                        titleColor: '#333',
+
+                        bodyColor: '#333',
+
+                        borderColor: '#ddd',
+
+                        borderWidth: 1,
+
+                        displayColors: false,
+
+                        callbacks: {
+
+                            label: function(context) {
+                                return `Score: ${context.parsed.y}%`;
+                            }
+
+                        }
+
+                    }
+
+                },
+
+                scales: {
+
+                    y: {
+
+                        beginAtZero: true,
+
+                        max: 100,
+
+                        ticks: {
+
+                            callback: function(value) {
+                                return value + '%';
+                            }
+
+                        }
+
+                    },
+
+                    x: {
+
+                        grid: {
+                            display: false
+                        }
+
+                    }
+
+                }
+
+            }
+
+        });
+
+    }
+
+    /*]]>*/
+
+</script>
+
+</body>
+</html>

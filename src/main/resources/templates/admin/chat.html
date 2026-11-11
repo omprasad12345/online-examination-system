@@ -1,0 +1,504 @@
+
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Admin Chat</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" th:href="@{/css/admin-chat.css(v=2)}">
+
+    <!-- STOMP WebSocket Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+
+</head>
+
+<body>
+
+<!-- Logged-in Admin ID -->
+<input type="hidden"
+       id="currentUserId"
+       th:value="${currentUserId}">
+
+
+<div class="chat-container">
+
+    <!-- ==============================
+         STUDENT SIDEBAR
+    =============================== -->
+
+    <aside class="student-sidebar">
+
+        <h2>Students</h2>
+
+        <div th:each="student : ${students}"
+             class="student-item">
+
+            <div class="student-avatar"
+                 th:text="${student.fullName != null and !student.fullName.isEmpty()
+                 ? #strings.substring(student.fullName, 0, 1) : 'S'}">
+                S
+            </div>
+
+            <div class="student-details">
+
+                <h4 th:text="${student.fullName}">
+                    Student Name
+                </h4>
+
+                <p th:text="${student.username}">
+                    Username
+                </p>
+
+            </div>
+
+            <!-- Select Student -->
+            <button type="button"
+                    class="chat-button"
+                    th:data-student-id="${student.id}"
+                    th:data-student-name="${student.fullName}"
+                    onclick="selectStudent(this)">
+
+                Chat
+
+            </button>
+
+            <!-- Unread Message Count -->
+            <span class="unread-badge"
+                  th:id="'unread-' + ${student.id}"
+                  th:if="${unreadCounts[student.id] != null and unreadCounts[student.id] > 0}"
+                  th:text="${unreadCounts[student.id]}">
+            </span>
+
+        </div>
+
+    </aside>
+
+
+    <!-- ==============================
+         MAIN CHAT SECTION
+    =============================== -->
+
+    <main class="chat-main">
+
+        <!-- Chat Header -->
+        <header class="chat-header">
+
+            <h2 id="chatTitle">
+                Select a student to start chatting
+            </h2>
+
+        </header>
+
+
+        <!-- Message Container -->
+        <div id="messageContainer"
+             class="message-container">
+
+            <p class="empty-message">
+                Select a student from the left side.
+            </p>
+
+        </div>
+
+
+        <!-- Message Input -->
+        <div class="chat-input-area">
+
+            <input type="text"
+                   id="messageInput"
+                   placeholder="Type your message..."
+                   autocomplete="off"
+                   disabled>
+
+            <button id="sendButton"
+                    type="button"
+                    disabled>
+
+                Send
+
+            </button>
+
+        </div>
+
+    </main>
+
+</div>
+
+
+<!-- ==============================
+     JAVASCRIPT
+================================ -->
+
+<script>
+
+
+    /* =====================================
+       CURRENT USER AND CHAT VARIABLES
+    ===================================== */
+
+    const CURRENT_USER_ID = Number(
+        document.getElementById("currentUserId").value
+    );
+
+    let selectedStudentId = null;
+    let stompClient = null;
+
+
+    /* =====================================
+       CONNECT TO WEBSOCKET
+    ===================================== */
+
+    function connectWebSocket() {
+
+        if (typeof StompJs === "undefined") {
+            console.error("STOMP library failed to load.");
+            return;
+        }
+
+        const protocol =
+            window.location.protocol === "https:" ? "wss://" : "ws://";
+
+        const socketUrl = protocol + window.location.host + "/ws";
+
+        stompClient = new StompJs.Client({
+            brokerURL: socketUrl,
+            reconnectDelay: 5000,
+
+            onConnect: function () {
+
+                console.log("WebSocket connected successfully!");
+
+                // 1. Subscribe to incoming chat messages
+                stompClient.subscribe(
+                    "/user/queue/messages",
+                    function (message) {
+
+                        const chatMessage = JSON.parse(message.body);
+
+                        console.log("New message received:", chatMessage);
+
+                        if (
+                            selectedStudentId !== null &&
+                            (
+                                Number(chatMessage.senderId) === selectedStudentId ||
+                                Number(chatMessage.receiverId) === selectedStudentId
+                            )
+                        ) {
+                            displayMessage(chatMessage);
+                        }
+                    }
+                );
+
+                // 2. Subscribe to live read receipts
+                stompClient.subscribe(
+                    "/user/queue/read-receipts",
+                    function (receiptMessage) {
+
+                        const receipt = JSON.parse(receiptMessage.body);
+
+                        console.log("Read receipt received:", receipt);
+
+                        // Student has read Admin's messages
+                        if (
+                            selectedStudentId !== null &&
+                            Number(receipt.readerId) === selectedStudentId &&
+                            Number(receipt.senderId) === CURRENT_USER_ID
+                        ) {
+                            document.querySelectorAll(
+                                "#messageContainer .message.sent .read-status"
+                            ).forEach(function (status) {
+
+                                status.textContent = "✓✓";
+                                status.classList.add("read");
+                            });
+                        }
+                    }
+                );
+
+            },
+
+            onStompError: function (frame) {
+                console.error(
+                    "STOMP Error:",
+                    frame.headers["message"]
+                );
+            },
+
+            onWebSocketError: function (error) {
+                console.error("WebSocket Error:", error);
+            },
+
+            onWebSocketClose: function () {
+                console.log("WebSocket connection closed.");
+            }
+        });
+
+        stompClient.activate();
+    }
+
+
+    /* =====================================
+       SELECT STUDENT
+    ===================================== */
+
+    async function selectStudent(button) {
+
+        const studentId = Number(button.dataset.studentId);
+        const studentName = button.dataset.studentName;
+
+        selectedStudentId = studentId;
+
+        document.getElementById("chatTitle").textContent =
+            "Chat with " + studentName;
+
+        document.getElementById("messageInput").disabled = false;
+        document.getElementById("sendButton").disabled = false;
+
+        await loadChatHistory(studentId);
+        await markMessagesAsRead(studentId);
+    }
+
+
+    /* =====================================
+       LOAD CHAT HISTORY
+    ===================================== */
+
+    async function loadChatHistory(studentId) {
+
+        const messageContainer =
+            document.getElementById("messageContainer");
+
+        messageContainer.innerHTML = "";
+
+        try {
+
+            const response = await fetch(
+                `/chat/history/${studentId}`
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    "Unable to load history: " + response.status
+                );
+            }
+
+            const messages = await response.json();
+
+            if (messages.length === 0) {
+                messageContainer.innerHTML =
+                    '<p class="empty-message">No messages yet. Start a conversation!</p>';
+                return;
+            }
+
+            messages.forEach(function (message) {
+                displayMessage(message);
+            });
+
+        } catch (error) {
+
+            console.error("Chat History Error:", error);
+
+            messageContainer.innerHTML =
+                '<p class="empty-message">Unable to load messages.</p>';
+        }
+    }
+
+
+    /* =====================================
+       SEND MESSAGE
+    ===================================== */
+
+    function sendMessage() {
+
+        const messageInput =
+            document.getElementById("messageInput");
+
+        const content = messageInput.value.trim();
+
+        if (selectedStudentId === null) {
+            alert("Please select a student first.");
+            return;
+        }
+
+        if (!content) {
+            return;
+        }
+
+        if (!stompClient || !stompClient.connected) {
+            alert("WebSocket is not connected. Please wait.");
+            return;
+        }
+
+        const chatMessage = {
+            receiverId: selectedStudentId,
+            content: content
+        };
+
+        stompClient.publish({
+            destination: "/app/chat.send",
+            body: JSON.stringify(chatMessage)
+        });
+
+        messageInput.value = "";
+    }
+
+
+    /* =====================================
+       DISPLAY MESSAGE
+    ===================================== */
+
+    function displayMessage(message) {
+
+        const messageContainer =
+            document.getElementById("messageContainer");
+
+        const emptyMessage =
+            messageContainer.querySelector(".empty-message");
+
+        if (emptyMessage) {
+            emptyMessage.remove();
+        }
+
+        const messageDiv = document.createElement("div");
+
+        messageDiv.classList.add("message");
+
+        const isSent =
+            Number(message.senderId) === CURRENT_USER_ID;
+
+        if (isSent) {
+            messageDiv.classList.add("sent");
+        } else {
+            messageDiv.classList.add("received");
+        }
+
+        // Message content
+        const content = document.createElement("div");
+        content.textContent = message.content;
+
+        // Timestamp
+        const time = document.createElement("span");
+        time.className = "message-time";
+
+        time.textContent = new Date(message.timestamp)
+            .toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit"
+            });
+
+        messageDiv.appendChild(content);
+        messageDiv.appendChild(time);
+
+        // Read receipt for Admin's own messages
+        if (isSent) {
+
+            const readStatus = document.createElement("span");
+
+            readStatus.className = "read-status";
+
+            readStatus.textContent =
+                message.isRead === true ? "✓✓" : "✓";
+
+            if (message.isRead === true) {
+                readStatus.classList.add("read");
+            }
+
+            messageDiv.appendChild(readStatus);
+        }
+
+        messageContainer.appendChild(messageDiv);
+
+        messageContainer.scrollTop =
+            messageContainer.scrollHeight;
+    }
+
+
+    /* =====================================
+       MARK MESSAGES AS READ
+    ===================================== */
+
+    async function markMessagesAsRead(studentId) {
+
+        try {
+
+            // Update database using REST API
+            const response = await fetch(
+                `/chat/read/${studentId}`,
+                {
+                    method: "PUT"
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    "Unable to mark messages as read: " +
+                    response.status
+                );
+            }
+
+            console.log("Messages marked as read.");
+
+            // Remove unread badge
+            const badge = document.getElementById(
+                "unread-" + studentId
+            );
+
+            if (badge) {
+                badge.remove();
+            }
+
+            // Notify Student through WebSocket
+            if (stompClient && stompClient.connected) {
+
+                stompClient.publish({
+                    destination: "/app/chat.read",
+
+                    body: JSON.stringify({
+                        senderId: studentId
+                    })
+                });
+
+                console.log("Read receipt notification sent.");
+            }
+
+        } catch (error) {
+
+            console.error("Read status error:", error);
+        }
+    }
+
+
+    /* =====================================
+       SEND BUTTON EVENT
+    ===================================== */
+
+    document.getElementById("sendButton")
+        .addEventListener("click", sendMessage);
+
+
+    /* =====================================
+       ENTER KEY EVENT
+    ===================================== */
+
+    document.getElementById("messageInput")
+        .addEventListener("keydown", function (event) {
+
+            if (event.key === "Enter") {
+                event.preventDefault();
+                sendMessage();
+            }
+        });
+
+
+    /* =====================================
+       START WEBSOCKET CONNECTION
+    ===================================== */
+
+    connectWebSocket();
+</script>
+</body>
+</html>
